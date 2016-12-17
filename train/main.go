@@ -3,9 +3,11 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"math/rand"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/unixpickle/autofunc"
@@ -21,10 +23,12 @@ func main() {
 	var batchSize int
 	var outFile string
 	var stepSize float64
+	var sampleFile string
 
 	flag.StringVar(&outFile, "output", "out_net", "network file")
-	flag.IntVar(&batchSize, "batch", 64, "batch size")
-	flag.IntVar(&hashSize, "hashsize", 32, "hash vector size")
+	flag.StringVar(&sampleFile, "samples", "", "optional sample word list")
+	flag.IntVar(&batchSize, "batch", 100, "batch size")
+	flag.IntVar(&hashSize, "hashsize", 10, "hash vector size")
 	flag.Float64Var(&stepSize, "step", 0.001, "SGD step size")
 
 	flag.Parse()
@@ -38,17 +42,18 @@ func main() {
 		os.Exit(1)
 	}
 
-	ig := &ignoreGradienter{
+	g := &transGradienter{
 		G: &Gradienter{
 			SeqFunc: &rnn.BlockSeqFunc{B: net.Block},
 			Learner: net.Block.(sgd.Learner),
 		},
-		Trans: &sgd.Adam{},
+		T: &sgd.Adam{},
 	}
-	fakeSamples := sgd.SliceSampleSet{nil}
-	sgd.SGDMini(ig, fakeSamples, 0.001, 1, func(_ sgd.SampleSet) bool {
-		ig.Batch = NewBatch(batchSize)
-		log.Printf("Cost: %f", ig.G.Cost(ig.Batch).Output()[0])
+	log.Println("Creating samples...")
+	s := createSamples(sampleFile)
+	log.Println("Training...")
+	sgd.SGDMini(g, s, 0.001, batchSize, func(s sgd.SampleSet) bool {
+		log.Printf("Cost: %f", g.G.Cost(s).Output()[0])
 		return true
 	})
 
@@ -58,12 +63,28 @@ func main() {
 	}
 }
 
-type ignoreGradienter struct {
-	G     *Gradienter
-	Batch sgd.SampleSet
-	Trans sgd.Transformer
+func createSamples(file string) sgd.SampleSet {
+	if file == "" {
+		return NewBatch(100000)
+	}
+	contents, err := ioutil.ReadFile(file)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Failed to read samples:", err)
+		os.Exit(1)
+	}
+	strs := strings.Split(string(contents), "\n")
+	var res sgd.SliceSampleSet
+	for _, x := range strs {
+		res = append(res, Sample(x))
+	}
+	return res
 }
 
-func (i *ignoreGradienter) Gradient(s sgd.SampleSet) autofunc.Gradient {
-	return i.Trans.Transform(i.G.Gradient(i.Batch))
+type transGradienter struct {
+	G *Gradienter
+	T sgd.Transformer
+}
+
+func (t *transGradienter) Gradient(s sgd.SampleSet) autofunc.Gradient {
+	return t.T.Transform(t.G.Gradient(s))
 }

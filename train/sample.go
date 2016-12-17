@@ -43,15 +43,15 @@ func (s Sample) smallChange() Sample {
 	} else {
 		op = rand.Intn(3)
 	}
+	ch := Sample([]byte{byte(rand.Intn(0x100))})
 	switch op {
 	case 0: // insert
 		idx := rand.Intn(len(s) + 1)
-		ch := Sample(byte(rand.Intn(0x100)))
 		return s[:idx] + ch + s[idx:]
 	case 1: // update
 		idx := rand.Intn(len(s))
-		ch := Sample(byte(rand.Intn(0x100)))
-		return s[:idx] + ch + s[idx+1:]
+		res := s[:idx] + ch + s[idx+1:]
+		return res
 	case 2: // delete
 		idx := rand.Intn(len(s))
 		return s[:idx] + s[idx+1:]
