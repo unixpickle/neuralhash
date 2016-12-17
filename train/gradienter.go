@@ -33,11 +33,14 @@ func (g *Gradienter) Cost(s sgd.SampleSet) autofunc.Result {
 		comps := len(out.Output()) / s.Len()
 		cov := covarianceMatrix(out, s.Len())
 		mask := &autofunc.Variable{Vector: make(linalg.Vector, comps*comps)}
+		covWeights := 1 / float64(comps-1)
 		for i := range mask.Vector {
 			if i%comps == i/comps {
 				mask.Vector[i] = -1
+			} else if cov.Output()[i] < 0 {
+				mask.Vector[i] = -covWeights
 			} else {
-				mask.Vector[i] = 1
+				mask.Vector[i] = covWeights
 			}
 		}
 		return autofunc.SumAll(autofunc.Mul(mask, cov))

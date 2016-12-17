@@ -23,7 +23,7 @@ func main() {
 	var stepSize float64
 
 	flag.StringVar(&outFile, "output", "out_net", "network file")
-	flag.IntVar(&batchSize, "batch", 100, "batch size")
+	flag.IntVar(&batchSize, "batch", 64, "batch size")
 	flag.IntVar(&hashSize, "hashsize", 32, "hash vector size")
 	flag.Float64Var(&stepSize, "step", 0.001, "SGD step size")
 
