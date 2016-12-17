@@ -16,13 +16,20 @@ type Gradienter struct {
 
 // Gradient computes the gradient for the batch.
 func (g *Gradienter) Gradient(s sgd.SampleSet) autofunc.Gradient {
+	grad := autofunc.NewGradient(g.Learner.Parameters())
+	g.Cost(s).PropagateGradient([]float64{1}, grad)
+	return grad
+}
+
+// Cost computes the cost for the batch.
+func (g *Gradienter) Cost(s sgd.SampleSet) autofunc.Result {
 	seqs := make([][]linalg.Vector, s.Len())
 	for i := range seqs {
 		seqs[i] = s.GetSample(i).(Sample).Seq()
 	}
 	in := seqfunc.ConstResult(seqs)
 	out := seqfunc.ConcatLast(g.SeqFunc.ApplySeqs(in))
-	cost := autofunc.Pool(out, func(out autofunc.Result) autofunc.Result {
+	return autofunc.Pool(out, func(out autofunc.Result) autofunc.Result {
 		comps := len(out.Output()) / s.Len()
 		cov := covarianceMatrix(out, s.Len())
 		mask := &autofunc.Variable{Vector: make(linalg.Vector, comps*comps)}
@@ -35,9 +42,6 @@ func (g *Gradienter) Gradient(s sgd.SampleSet) autofunc.Gradient {
 		}
 		return autofunc.SumAll(autofunc.Mul(mask, cov))
 	})
-	grad := autofunc.NewGradient(g.Learner.Parameters())
-	cost.PropagateGradient([]float64{1}, grad)
-	return grad
 }
 
 func covarianceMatrix(result autofunc.Result, n int) autofunc.Result {
